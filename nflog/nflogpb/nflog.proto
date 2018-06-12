@@ -39,6 +39,15 @@ message Entry {
   repeated uint64 firing_alerts = 6;
   // ResolvedAlerts list of hashes of resolved alerts at the last notification time.
   repeated uint64 resolved_alerts = 7;
+
+  enum Format {
+    STANDARD = 0;
+    COMPRESSED = 1;
+  }
+  // In the event a message exceeds the gossip size, its resolved and firing
+  // alerts are hashed into single values. This result is then compared on the
+  // receiving end as a best-effort "are there any changes".
+  Format format = 8;
 }
 
 // MeshEntry is a wrapper message to communicate a notify log
