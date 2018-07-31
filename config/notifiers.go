@@ -38,6 +38,11 @@ var (
 		Text: ``,
 	}
 
+	// DefaultKAKConfig defines default values for Email configurations.
+	DefaultKFKConfig = KFKConfig{
+		Topic: `naozhewan`,
+	}
+
 	// DefaultEmailSubject defines the default Subject header of an Email.
 	DefaultEmailSubject = `{{ template "email.default.subject" . }}`
 
@@ -144,6 +149,27 @@ type NotifierConfig struct {
 
 func (nc *NotifierConfig) SendResolved() bool {
 	return nc.VSendResolved
+}
+
+type KFKConfig struct {
+	NotifierConfig  `yaml:",inline" json:",inline"`
+	Message  string `yaml:"message,omitempty" json:"message,omitempty"`
+	Topic    string `yaml:"topic,omitempty" json:"topic,omitempty"`
+	Address  string `yaml:"address,omitempty" json:"address,omitempty"`
+	Clientid string `yaml:"clientid,omitempty" json:"clientid,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *KFKConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultKFKConfig
+	type plain KFKConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.Topic == "" {
+		return fmt.Errorf("missing to topic in kafka config")
+	}
+	return nil
 }
 
 // EmailConfig configures notifications via mail.

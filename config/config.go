@@ -233,6 +233,26 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				wh.HTTPConfig = c.Global.HTTPConfig
 			}
 		}
+		for _, kfk := range rcv.KFKConfigs {
+			if kfk.Topic == "" {
+				if c.Global.KFKTopic == "" {
+					return fmt.Errorf("no global kafka topic set")
+				}
+				kfk.Topic = c.Global.KFKTopic
+			}
+			if kfk.Address == "" {
+				if c.Global.KFKAddress == "" {
+					return fmt.Errorf("no global kafka address set")
+				}
+				kfk.Address = c.Global.KFKAddress
+			}
+			if kfk.Clientid == "" {
+				if c.Global.KFKClientid == "" {
+					return fmt.Errorf("no global kafka clientid set")
+				}
+				kfk.Clientid = c.Global.KFKClientid
+			}
+		}
 		for _, ec := range rcv.EmailConfigs {
 			if ec.Smarthost == "" {
 				if c.Global.SMTPSmarthost == "" {
@@ -469,6 +489,10 @@ type GlobalConfig struct {
 	WeChatAPICorpID  string     `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
 	VictorOpsAPIURL  *URL       `yaml:"victorops_api_url,omitempty" json:"victorops_api_url,omitempty"`
 	VictorOpsAPIKey  Secret     `yaml:"victorops_api_key,omitempty" json:"victorops_api_key,omitempty"`
+
+	KFKAddress  string `yaml:"kafka_address,omitempty" json:"kafka_address,omitempty"`
+	KFKClientid string `yaml:"kafka_clientid,omitempty" json:"kafka_clientid,omitempty"`
+	KFKTopic    string `yaml:"kafka_topic,omitempty" json:"kafka_topic,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -600,6 +624,7 @@ type Receiver struct {
 	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
+	KFKConfigs       []*KFKConfig       `yaml:"kafka_configs,omitempty" json:"kafka_configs,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

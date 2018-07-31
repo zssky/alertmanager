@@ -43,6 +43,8 @@ import (
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
+
+	"github.com/Shopify/sarama"
 )
 
 // A Notifier notifies about alerts under constraints of the given context.
@@ -88,6 +90,10 @@ func BuildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, log
 	for i, c := range nc.EmailConfigs {
 		n := NewEmail(c, tmpl, logger)
 		add("email", i, n, c)
+	}
+	for i, c := range nc.KFKConfigs {
+		n := NewKafka(c, tmpl, logger)
+		add("kafka", i, n, c)
 	}
 	for i, c := range nc.PagerdutyConfigs {
 		n := NewPagerDuty(c, tmpl, logger)
@@ -194,6 +200,68 @@ func (w *Webhook) retry(statusCode int) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// Kafka implements a Notifier for kafka notifications
+type Kafka struct {
+	conf     *config.KFKConfig
+	tmpl     *template.Template
+	logger   log.Logger
+	producer sarama.SyncProducer
+}
+
+// NewKafka returns a new Kafka notifier.
+func NewKafka(c *config.KFKConfig, t *template.Template, l log.Logger) *Kafka {
+
+	conf := sarama.NewConfig()
+	conf.Producer.Return.Successes = true
+	conf.ClientID = c.Clientid
+	if conf.ClientID == "" {
+		conf.ClientID = "tmp"
+	}
+	temArray := strings.Split(c.Address, ",")
+	var addrArray []string
+	for _, v := range temArray {
+		v = strings.Trim(v, " ")
+		if v != "" {
+			addrArray = append(addrArray, v)
+		}
+	}
+	p, err := sarama.NewSyncProducer(addrArray, conf)
+	if err != nil {
+		return nil
+	}
+	return &Kafka{conf: c, tmpl: t, logger: l, producer: p}
+}
+
+// Notify implements the Notifier interface.
+func (n *Kafka) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
+
+	if n.producer == nil {
+		return false, errors.New("KafkaProducer build failed")
+	}
+
+	var (
+		tmplErr error
+		data    = n.tmpl.Data(receiverName(ctx, n.logger), groupLabels(ctx, n.logger), as...)
+	)
+	if tmplErr != nil {
+		return false, fmt.Errorf("failed to Marshal in func kafka Notify: %v", tmplErr)
+	}
+
+	b, err := json.Marshal(data)
+	if err != nil {
+		return false, fmt.Errorf("failed to Marshal in func kafka Notify: %v", tmplErr)
+	}
+
+	_, _, sendErr := n.producer.SendMessage(&sarama.ProducerMessage{
+		Topic: n.conf.Topic,
+		Value: sarama.StringEncoder(string(b)),
+	})
+	if sendErr != nil {
+		return false, sendErr
+	}
+	return true, nil
 }
 
 // Email implements a Notifier for email notifications.
@@ -394,6 +462,7 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 			return false, fmt.Errorf("creating part for html template: %s", err)
 		}
 		body, err := n.tmpl.ExecuteHTMLString(n.conf.HTML, data)
+		fmt.Printf("body is %s\n", body)
 		if err != nil {
 			return false, fmt.Errorf("executing email html template: %s", err)
 		}
@@ -412,7 +481,6 @@ func (n *Email) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to write body buffer: %v", err)
 	}
-
 	return false, nil
 }
 
